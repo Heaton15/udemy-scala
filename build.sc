@@ -35,4 +35,4 @@ trait WithScala3 extends ScalaModule{
   )
 }
 
-object `section-2` extends WithScala3 
+object exercises extends WithScala3 
