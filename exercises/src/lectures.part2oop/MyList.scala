@@ -5,17 +5,16 @@ package lectures.part2oop
  *
  * 1. Variance with +T, T, -T and its implications. This is covered more in the
  *    advanced course. Might want to start here to understand "position" better
- *    in classes, methods, return types and such. 
+ *    in classes, methods, return types and such.
  *
  * 2. Recursion to implement functions such as map, filter, flatMap
  * 3. Inheritance from an abstract class and implementing traits (Predicate /
- *    Transformer) with anonymous classes. 
- *    - Note that the Predicate and Transformer anonymous classes can also 
+ *    Transformer) with anonymous classes.
+ *    - Note that the Predicate and Transformer anonymous classes can also
  *      be defined separately and passed as a function parameter. There is
  *      undoubtedly a better way to transform Int to String, Int to Double, etc
- *      etc. 
+ *      etc.
  */
-
 
 abstract class MyList[+A] {
   /* head = first element of the list
@@ -55,27 +54,40 @@ abstract class MyList[+A] {
    *
    */
 
-  def map[B](t: MyTransformer[A, B]): MyList[B]
-  def flatMap[B](t: MyTransformer[A, MyList[B]]): MyList[B]
-  def filter(p: MyPredicate[A]): MyList[A]
+  /* Now that we are in the functional programming section, the first task was
+   * to remove the MyPredicate and MyTransformer traits since they resemble too
+   * much of OOP. Because we have Function1, Function2, etc, we can implement
+   * these in a much more function way. As a result, our types will be function
+   * types instead of objects, and the implementations will come from the
+   * scala Functions.
+   *
+   * note: MyTransformer was taking A and returning B which is A => B
+   * note: MyPredicate was taking T and returning Boolean which is T => Boolean
+   */
+
+//trait MyPredicate[-T] {
+//  def apply(elem: T): Boolean
+//  //def test(elem: T): Boolean
+//}
+//
+//trait MyTransformer[-A, B] {
+//  def apply(ele: A): B
+//  //def transform(ele: A): B
+//}
+
+  def map[B](t: A => B): MyList[B]
+  def flatMap[B](t: A => MyList[B]): MyList[B]
+  def filter(p: A => Boolean): MyList[A]
 
   // concatenation
   def ++[B >: A](list: MyList[B]): MyList[B]
 }
 
-trait MyPredicate[-T] {
-  def test(elem: T): Boolean
-}
-
-trait MyTransformer[-A, B] {
-  def transform(ele: A): B
-}
-
 case object Empty extends MyList[Nothing] {
 
-  def map[B](t: MyTransformer[Nothing, B]): MyList[B] = Empty
-  def flatMap[B](t: MyTransformer[Nothing, MyList[B]]): MyList[B] = Empty
-  def filter(p: MyPredicate[Nothing]): MyList[Nothing] = Empty
+  def map[B](t: Nothing => B): MyList[B] = Empty
+  def flatMap[B](t: Nothing => MyList[B]): MyList[B] = Empty
+  def filter(p: Nothing => Boolean): MyList[Nothing] = Empty
 
   def head: Nothing = throw new NoSuchElementException // throws Nothing type
   def tail: MyList[Nothing] = throw new NoSuchElementException
@@ -100,27 +112,28 @@ case class Cons[+A](h: A, t: MyList[A]) extends MyList[A] {
     else s"$h ${t.printElements}"
   }
 
-  def filter(predicate: MyPredicate[A]): MyList[A] = {
-    if (predicate.test(h)) new Cons(h, t.filter(predicate))
+  def filter(predicate: A => Boolean): MyList[A] = {
+    if (predicate(h)) new Cons(h, t.filter(predicate))
     else t.filter(predicate)
   }
 
-  def map[B](transformer: MyTransformer[A, B]): MyList[B] = {
-    new Cons(transformer.transform(h), t.map(transformer))
+  def map[B](transformer: A => B): MyList[B] = {
+    new Cons(transformer(h), t.map(transformer))
   }
 
   def ++[B >: A](list: MyList[B]): MyList[B] = {
     new Cons(h, t ++ list)
   }
 
-  def flatMap[B](transformer: MyTransformer[A, MyList[B]]): MyList[B] = {
-    transformer.transform(h) ++ t.flatMap(transformer)
+  def flatMap[B](transformer: A => MyList[B]): MyList[B] = {
+    transformer(h) ++ t.flatMap(transformer)
   }
 }
 
 object InheritancePractice extends App {
   val list: MyList[Int] = new Cons(1, new Cons(2, new Cons(3, Empty)))
-  val cloneListOfIntegers: MyList[Int] = new Cons(1, new Cons(2, new Cons(3, Empty)))
+  val cloneListOfIntegers: MyList[Int] =
+    new Cons(1, new Cons(2, new Cons(3, Empty)))
   val anotherListOfInts: MyList[Int] = new Cons(4, new Cons(5, Empty))
   val listStrings: MyList[String] =
     new Cons("hello", new Cons("Scala", new Cons("YAY", Empty)))
@@ -133,24 +146,37 @@ object InheritancePractice extends App {
   // The confusing part originally was how we implemented them in the traits,
   // but clearly the intention was to implement them after the fact
 
+  /* Now that we are in the functional programming section, we don't need the
+   * MyTransformer / MyPredicate calls anymore. Instead, we can define the
+   * Function types here in the anonymous implementations.
+   *
+   * INSTEAD of passing in anonymous functions here, we can now just pass a
+   * function as a the input to list.map(...) instead of expecting the trait. We
+   * can now provide different implementations which just take a Int and return
+   * an Int. 
+   *
+   * higher order functions take functions as inputs or return functions
+   */
+
   println(
     list
-      .map(new MyTransformer[Int, Int] {
-        override def transform(elem: Int): Int = elem * 2
+      .map(new Function1[Int, Int] {
+        override def apply(elem: Int): Int = elem * 2
       })
       .toString
   )
 
   println(
     list
-      .filter(new MyPredicate[Int] {
-        override def test(elem: Int): Boolean = elem % 2 == 0
+      .filter(new Function1[Int, Boolean] {
+        override def apply(elem: Int): Boolean = elem % 2 == 0
       })
       .toString
   )
 
   println((list ++ anotherListOfInts).toString)
-  println(list.flatMap(new MyTransformer[Int, MyList[Int]] {
-    override def transform(elem: Int): MyList[Int] = new Cons(elem, new Cons(elem+1, Empty))
+  println(list.flatMap(new Function1[Int, MyList[Int]] {
+    override def apply(elem: Int): MyList[Int] =
+      new Cons(elem, new Cons(elem + 1, Empty))
   }))
 }
