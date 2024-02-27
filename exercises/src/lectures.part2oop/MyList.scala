@@ -79,6 +79,14 @@ abstract class MyList[+A] {
   def flatMap[B](t: A => MyList[B]): MyList[B]
   def filter(p: A => Boolean): MyList[A]
 
+  def foreach(a: A => Unit): Unit
+  def sort(compare: (A, A) => Int): MyList[A]
+
+  def zipWith[B, C](lst: MyList[B], f: (A, B) => C): MyList[C]
+
+  // Should be a curried method
+  def fold[B](start: B)(operator: (B, A) => B): B
+
   // concatenation
   def ++[B >: A](list: MyList[B]): MyList[B]
 }
@@ -88,6 +96,20 @@ case object Empty extends MyList[Nothing] {
   def map[B](t: Nothing => B): MyList[B] = Empty
   def flatMap[B](t: Nothing => MyList[B]): MyList[B] = Empty
   def filter(p: Nothing => Boolean): MyList[Nothing] = Empty
+
+  // Do nothing when empty?
+  def foreach(a: Nothing => Unit): Unit = ()
+  def sort(compare: (Nothing, Nothing) => Int): MyList[Nothing] = Empty
+
+  def zipWith[B, C](lst: MyList[B], f: (Nothing, B) => C): MyList[C] = {
+    // This makes sense, because if the Empty object is called with zipWith and
+    // the lst is not empty, then they 100% do not match
+    if (!lst.isEmpty)
+      throw new RuntimeException("Lists do not have the same length")
+    else Empty
+  }
+
+  def fold[B](start: B)(operator: (B, Nothing) => B): B = start
 
   def head: Nothing = throw new NoSuchElementException // throws Nothing type
   def tail: MyList[Nothing] = throw new NoSuchElementException
@@ -128,15 +150,68 @@ case class Cons[+A](h: A, t: MyList[A]) extends MyList[A] {
   def flatMap[B](transformer: A => MyList[B]): MyList[B] = {
     transformer(h) ++ t.flatMap(transformer)
   }
+
+  def foreach(p: A => Unit): Unit = {
+    p(h)
+    t.foreach(i => p(i))
+  }
+
+  /*  When looking back, this recursive sort function is probably something you
+   *  should study. Reading through it makes a lot of sense, but coming up with
+   *  this solution is not necessarily obvious when thinking about it for the
+   *  first time.
+   *
+   *  Tbf, it wasn't really obvious what to sort by. In this case its least to
+   *  greatest or greatest to least by the math of x - y or y - x.
+   */
+
+  // Unknown what the function can be, so operate in terms of a function
+  // [1,2,3].sort((x,y) => y - x) , returns 3, 2, 1
+  def sort(compare: (A, A) => Int): MyList[A] = {
+    def insert(x: A, sortedList: MyList[A]): MyList[A] = {
+      if (sortedList.isEmpty) new Cons(x, Empty)
+      else if (compare(x, sortedList.head) <= 0) new Cons(x, sortedList)
+      else new Cons(sortedList.head, insert(x, sortedList.tail))
+    }
+    val sortedTail = t.sort(compare)
+    insert(h, sortedTail)
+  }
+
+  /* 1. We have an original list
+   * 2. We want to apply a function against a new list
+   *
+   * 3. When we di this, we got pretty close except we only used A,B and not C
+   */
+  def zipWith[B, C](lst: MyList[B], f: (A, B) => C): MyList[C] = {
+    // This also makes sense because when we start recursively calling this
+    // function, we eventually will land here. We aren't in the Empty object, so
+    // if the lst isEmpty we still have work to be done so we should error out.
+    if (lst.isEmpty)
+      throw new RuntimeException("Lists do not have the same length")
+
+    // Nice! You got this right on your first try
+    else new Cons(f(h, lst.head), t.zipWith(lst.tail, f))
+  }
+
+  def fold[B](start: B)(operator: (B, A) => B): B = {
+    t.fold(operator(start, h))(operator)
+  }
+
 }
 
 object InheritancePractice extends App {
   val list: MyList[Int] = new Cons(1, new Cons(2, new Cons(3, Empty)))
-  val cloneListOfIntegers: MyList[Int] =
+
+  val cloneListOfIntegers: MyList[Int] = {
     new Cons(1, new Cons(2, new Cons(3, Empty)))
+  }
+
   val anotherListOfInts: MyList[Int] = new Cons(4, new Cons(5, Empty))
-  val listStrings: MyList[String] =
+
+  val listStrings: MyList[String] = {
     new Cons("hello", new Cons("Scala", new Cons("YAY", Empty)))
+  }
+
   println(list.toString)
   println(listStrings.toString)
   println(cloneListOfIntegers == list)
@@ -153,7 +228,7 @@ object InheritancePractice extends App {
    * INSTEAD of passing in anonymous functions here, we can now just pass a
    * function as a the input to list.map(...) instead of expecting the trait. We
    * can now provide different implementations which just take a Int and return
-   * an Int. 
+   * an Int.
    *
    * higher order functions take functions as inputs or return functions
    */
@@ -165,6 +240,11 @@ object InheritancePractice extends App {
       })
       .toString
   )
+  /*  ^^^^
+   *  |||| <--- equivalent lines
+   *  vvvv
+   */
+  println(list.map(_ * 2).toString)
 
   println(
     list
@@ -174,9 +254,43 @@ object InheritancePractice extends App {
       .toString
   )
 
+  println(list.filter(_ % 2 == 0))
+
   println((list ++ anotherListOfInts).toString)
-  println(list.flatMap(new Function1[Int, MyList[Int]] {
+
+  val a = list.flatMap(new Function1[Int, MyList[Int]] {
     override def apply(elem: Int): MyList[Int] =
       new Cons(elem, new Cons(elem + 1, Empty))
-  }))
+  })
+
+  // Kind of neat that we have anonymous functions created inside of the
+  // functional calls now
+
+  val b: MyList[Int] = list.flatMap(i => new Cons(i, new Cons(i + 1, Empty)))
+
+  b.foreach(i => println(i))
+
+  val c: MyList[Int] =
+    new Cons(1, new Cons(3, new Cons(2, new Cons(10, new Cons(6, Empty)))))
+  val d: MyList[String] = new Cons(
+    "1",
+    new Cons("3", new Cons("2", new Cons("10", new Cons("6", Empty))))
+  )
+  println(c.sort((x, y) => y - x))
+
+  println(c)
+  println(d)
+
+  val e = c.zipWith(d, ((a, b) => s"$a $b"))
+  println(c.fold(0)((x, y) => y + x))
+
+  for {
+    i <- c
+  } println(s"The number is $i")
+  // Nice, for comprehensions are supported with our list implementation. The
+  // compiler will use foreach, map, flatMap, filter, etc to re-write these. So
+  // if you have them defined, you will have for comprehensions available to
+  // you. 
+
+
 }
