@@ -57,6 +57,7 @@ object PatternMatching extends App {
   val animal: Animal = Dog("Corgi")
   animal match {
     case Dog(someBreed) => println(s"Matched a dog of the $someBreed")
+    case _              => println("Animal")
   }
 
   // match everything
@@ -71,7 +72,38 @@ object PatternMatching extends App {
   val isEvenCond = if (x % 2 == 0) true else false
   val isEvenNormal = x % 2 == 0
 
-  /*
+  /* Exercises
+   * 1. simple function uses PM
+   *  takes Expr as parameter and returns human readable format
+   *  Sum(Number(2), Number(3)) => 2 + 3 should be returned
+   *  Sum(Number(2), Number(3), Number(4)) => 2 + 3 + 4
+   *  Prod(Sum(Number(2), Number(1)), Number(3)) = (2 + 1) * 3
+   *  Sum(Prod(Number(2), Number(1)), Number(3)) = 2 * 1 + 3
    */
+  trait Expr
+  case class Number(n: Int) extends Expr
+  case class Sum(e1: Expr, e2: Expr) extends Expr
+  case class Prod(e1: Expr, e2: Expr) extends Expr
+
+  // Your solution was with Int but he wanted String. 
+  def solveExpr(e: Expr): Int = {
+    e match {
+      case Sum(a, b) => solveExpr(a) + solveExpr(b)
+      case Prod(a, b) => {
+        def maybeShowParantheses(exp: Expr) = exp match {
+          case Prod(_, _) => solveExpr(exp)
+          case Number(_)  => solveExpr(exp)
+          case _          => "(" + solveExpr(exp) + ")"
+        }
+        // maybeShowParantheses(e1) + " * " + maybeShowParantheses(e2)
+        solveExpr(a) * solveExpr(b)
+      }
+      case Number(n) => n
+    }
+  }
+  // val a = Prod(Sum(Number(2), Number(1)), Number(3))
+  val a = Sum(Prod(Number(2), Number(1)), Number(3))
+  val b = solveExpr(a)
+  println(b)
 
 }
