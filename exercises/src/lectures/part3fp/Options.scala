@@ -7,6 +7,11 @@ object Options extends App {
   println(myFirstOption)
   println(noOption)
 
+  // .get
+  val myMap: Map[String, String] = Map("a" -> "b")
+  val myVal =
+    myMap.get("a") // Option[String], this automatically returns the Option type
+
   // unsafe APIs
   def unsafeMethod(): String = null
 
@@ -39,7 +44,7 @@ object Options extends App {
   println(myFirstOption.filter(x => x > 10)) // None
   println(myFirstOption.flatMap(x => Option(x * 10))) // Some(40)
 
-  // for-comprehensions
+  // supports for-comprehensions
 
   /* 1. Assume you are given an API from other programmers
    */
@@ -63,4 +68,51 @@ object Options extends App {
 
   // try to establish a connection, if so - print the connect method
 
+  /* Assumptions
+   * 1. "host" or "port" can not be initialized, so assume he means they are null
+   *  - We probably want to wrap them in Option to be able to check if they are
+   *    null then
+   * 2.
+   */
+
+  // Fetch the config information
+
+  // Solution
+  val host = config.get("host")
+  val port = config.get("port")
+
+  // Annotated, this is what happens
+  // if (h != null)
+  //  if (p != null)
+  //    return Connection.apply(h, p)
+  // else
+  //  return null
+  //
+  // Pay attention that a flatMap, map, etc on a Option will not run if its None
+  val connection = host.flatMap(h => port.flatMap(p => Connection(h, p)))
+  val connectionStatus = connection.map(c => c.connect)
+  println(connectionStatus)
+  connectionStatus.foreach(println)
+
+  config
+    .get("host")
+    .flatMap(host =>
+      config
+        .get("port")
+        .flatMap(port => Connection(host, port))
+        .map(connection => connection.connect)
+    )
+    .foreach(println)
+
+  // for-comprehensions
+
+  val forConnectionStatus = for {
+    // given a host obtained from config.get(...)
+    host <- config.get("host")
+    // given a port obtrained from config.get(...)
+    port <- config.get("port")
+    // give a connection obtained from Connection(host, port)
+    connection <- Connection(host, port)
+    // give me the connection status
+  } yield connection.connect
 }
